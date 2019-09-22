@@ -322,6 +322,10 @@ esp_mqtt_client_handle_t esp_mqtt_client_init(const esp_mqtt_client_config_t *co
         ESP_MEM_CHECK(TAG, client->config->scheme, goto _mqtt_init_failed);
     }
 #endif
+    client->outbox = outbox_init();
+    ESP_MEM_CHECK(TAG, client->outbox, goto _mqtt_init_failed);
+    client->status_bits = xEventGroupCreate();
+    ESP_MEM_CHECK(TAG, client->status_bits, goto _mqtt_init_failed);
     if (client->config->uri) {
         if (esp_mqtt_client_set_uri(client, client->config->uri) != ESP_OK) {
             goto _mqtt_init_failed;
@@ -349,13 +353,9 @@ esp_mqtt_client_handle_t esp_mqtt_client_init(const esp_mqtt_client_config_t *co
 
     client->mqtt_state.out_buffer_length = buffer_size;
     client->mqtt_state.connect_info = &client->connect_info;
-    client->outbox = outbox_init();
-    ESP_MEM_CHECK(TAG, client->outbox, goto _mqtt_init_failed);
-    client->status_bits = xEventGroupCreate();
-    ESP_MEM_CHECK(TAG, client->status_bits, goto _mqtt_init_failed);
     return client;
 _mqtt_init_failed:
-    esp_mqtt_client_destroy(client);
+	esp_mqtt_client_destroy(client);
     return NULL;
 }
 
