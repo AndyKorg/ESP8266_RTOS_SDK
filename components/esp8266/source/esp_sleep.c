@@ -96,6 +96,8 @@ static inline uint32_t min_sleep_us(pm_soc_clk_t *clk)
 
 static inline void update_soc_clk(pm_soc_clk_t *clk, uint32_t us)
 {
+    extern uint32_t WdevTimOffSet;
+
     const uint32_t os_ccount = us * g_esp_ticks_per_us + clk->ccount;
 
     if (os_ccount >= _xt_tick_divisor) 
@@ -107,6 +109,8 @@ static inline void update_soc_clk(pm_soc_clk_t *clk, uint32_t us)
 
         REG_WRITE(FRC2_LOAD,  frc2_cnt);
     }
+
+    WdevTimOffSet += us;
 }
 
 esp_err_t esp_sleep_enable_timer_wakeup(uint32_t time_in_us)
@@ -162,10 +166,15 @@ void esp_sleep_start(void)
     uart_tx_wait_idle(0);
     uart_tx_wait_idle(1);
 
-    int slept = 0;
+    int cpu_wait = 1;
     pm_soc_clk_t clk;
     const esp_irqflag_t irqflag = soc_save_local_irq();
     const uint32_t wdevflag = save_local_wdev();
+
+    if (s_lock_cnt) {
+        cpu_wait = 0;
+        goto exit;
+    }
 
     save_soc_clk(&clk);
 
@@ -184,13 +193,14 @@ void esp_sleep_start(void)
 
             update_soc_clk(&clk, sleep_us);
 
-            slept = 1;
+            cpu_wait = 0;
         }
     }
 
+exit:
     restore_local_wdev(wdevflag);
     soc_restore_local_irq(irqflag);
 
-    if (!slept)
+    if (cpu_wait)
         soc_wait_int();
 }
